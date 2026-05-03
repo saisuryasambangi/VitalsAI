@@ -1,0 +1,24 @@
+# Xcode
+*.xcuserstate
+*.xccheckout
+xcuserdata/
+
+# Build products
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods (none here, but future-proof)
+Pods/
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Sensitive
+*.env
