@@ -1,9 +1,13 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct HistoryView: View {
     @Query(sort: \InsightRecord.createdAt, order: .reverse) private var records: [InsightRecord]
     @Environment(\.modelContext) private var modelContext
+
+    @State private var exportItems: [Any] = []
+    @State private var showExportSheet = false
 
     var body: some View {
         Group {
@@ -21,9 +25,30 @@ struct HistoryView: View {
         }
         .navigationTitle("History")
         .toolbar {
-            if !records.isEmpty {
-                EditButton()
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if !records.isEmpty {
+                    Menu {
+                        Button {
+                            exportItems = [ExportService.csvFileURL(from: records)]
+                            showExportSheet = true
+                        } label: {
+                            Label("Export CSV", systemImage: "tablecells")
+                        }
+                        Button {
+                            exportItems = [ExportService.pdfFileURL(from: records)]
+                            showExportSheet = true
+                        } label: {
+                            Label("Export PDF", systemImage: "doc.richtext")
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    EditButton()
+                }
             }
+        }
+        .sheet(isPresented: $showExportSheet) {
+            ActivitySheet(items: exportItems)
         }
     }
 
@@ -102,6 +127,18 @@ private struct TrendPill: View {
             .padding(.vertical, 4)
             .background(color.opacity(0.15), in: Capsule())
     }
+}
+
+// MARK: - ActivitySheet
+
+private struct ActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
