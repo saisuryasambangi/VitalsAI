@@ -7,7 +7,8 @@ final class NotificationService {
     static let shared = NotificationService()
     private let center = UNUserNotificationCenter.current()
 
-    static let weeklyReminderID = "com.vitalsai.weekly-reminder"
+    private static let weeklyID  = "com.vitalsai.weekly-reminder"
+    private static let kickoffID = "com.vitalsai.weekly-reminder.kickoff"
 
     // MARK: - Permission
 
@@ -21,50 +22,69 @@ final class NotificationService {
 
     // MARK: - Schedule
 
-    /// Schedules a repeating weekly notification.
+    /// Schedules a weekly reminder.
+    /// The first fire is always the 1st of next month at `hour:00`
+    /// so enabling today still lands in the future month.
+    /// After that it repeats every `weekday` at `hour:00`.
+    ///
     /// - Parameters:
-    ///   - weekday: 1 = Sunday … 7 = Saturday (Calendar convention). Default 2 = Monday.
-    ///   - hour: 24-hour clock hour. Default 9.
+    ///   - weekday: 1 = Sunday … 7 = Saturday. Default 2 = Monday.
+    ///   - hour: 24-hour clock. Default 9.
     func scheduleWeeklyReminder(weekday: Int = 2, hour: Int = 9) {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.weeklyReminderID])
+        center.removePendingNotificationRequests(withIdentifiers: [Self.weeklyID, Self.kickoffID])
 
         let content = UNMutableNotificationContent()
         content.title = "Time for your weekly health check"
         content.body = "See how your steps, sleep, and heart rate look this week."
         content.sound = .default
 
-        var components = DateComponents()
-        components.weekday = weekday
-        components.hour = hour
-        components.minute = 0
+        // ── Kickoff: 1st of next month ────────────────────────────────
+        let cal = Calendar.current
+        var kickoff = cal.dateComponents([.year, .month], from: Date())
+        kickoff.month = (kickoff.month ?? 1) + 1
+        kickoff.day   = 1
+        kickoff.hour  = hour
+        kickoff.minute = 0
 
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-        let request = UNNotificationRequest(
-            identifier: Self.weeklyReminderID,
+        let kickoffTrigger = UNCalendarNotificationTrigger(dateMatching: kickoff, repeats: false)
+        center.add(UNNotificationRequest(
+            identifier: Self.kickoffID,
             content: content,
-            trigger: trigger
-        )
-        center.add(request)
+            trigger: kickoffTrigger
+        ))
+
+        // ── Repeating weekly thereafter ───────────────────────────────
+        var weekly = DateComponents()
+        weekly.weekday = weekday
+        weekly.hour    = hour
+        weekly.minute  = 0
+
+        let weeklyTrigger = UNCalendarNotificationTrigger(dateMatching: weekly, repeats: true)
+        center.add(UNNotificationRequest(
+            identifier: Self.weeklyID,
+            content: content,
+            trigger: weeklyTrigger
+        ))
     }
 
     func cancelWeeklyReminder() {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.weeklyReminderID])
+        center.removePendingNotificationRequests(withIdentifiers: [Self.weeklyID, Self.kickoffID])
     }
 
     // MARK: - Status
 
     func isReminderScheduled() async -> Bool {
         let pending = await center.pendingNotificationRequests()
-        return pending.contains { $0.identifier == Self.weeklyReminderID }
+        let ids = Set(pending.map(\.identifier))
+        return ids.contains(Self.weeklyID) || ids.contains(Self.kickoffID)
     }
 
-    /// Returns the next fire date for the weekly reminder, if scheduled.
+    /// Returns the soonest upcoming fire date across both requests.
     func nextFireDate() async -> Date? {
         let pending = await center.pendingNotificationRequests()
-        guard
-            let request = pending.first(where: { $0.identifier == Self.weeklyReminderID }),
-            let trigger = request.trigger as? UNCalendarNotificationTrigger
-        else { return nil }
-        return trigger.nextTriggerDate()
+        let dates = pending
+            .filter { [Self.weeklyID, Self.kickoffID].contains($0.identifier) }
+            .compactMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
+        return dates.min()
     }
 }
