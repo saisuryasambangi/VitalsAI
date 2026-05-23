@@ -9,12 +9,14 @@ final class InsightViewModel {
     var isGenerating = false
     var error: String?
     var providerUsed: LLMProviderType = .anthropic
+    var isSaved = false
 
     private let llmService: any LLMService
     private let modelContext: ModelContext
 
-    init(llmService: any LLMService, modelContext: ModelContext) {
+    init(llmService: any LLMService, providerType: LLMProviderType, modelContext: ModelContext) {
         self.llmService = llmService
+        self.providerUsed = providerType
         self.modelContext = modelContext
     }
 
@@ -43,7 +45,7 @@ final class InsightViewModel {
     }
 
     func saveCurrentInsight(weekStartDate: Date = Date()) {
-        guard let insight = currentInsight else { return }
+        guard let insight = currentInsight, !isSaved else { return }
         let record = InsightRecord(
             id: UUID(),
             createdAt: Date(),
@@ -55,5 +57,6 @@ final class InsightViewModel {
         )
         modelContext.insert(record)
         try? modelContext.save()
+        isSaved = true
     }
 }
