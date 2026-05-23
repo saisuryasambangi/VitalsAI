@@ -3,17 +3,7 @@ import SwiftData
 
 @main
 struct VitalsAIApp: App {
-    let modelContainer: ModelContainer
-
-    init() {
-        let schema = Schema([InsightRecord.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        do {
-            modelContainer = try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }
+    let modelContainer: ModelContainer = AppModelContainer.shared
 
     var body: some Scene {
         WindowGroup {

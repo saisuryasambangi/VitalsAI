@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import SwiftData
 
 // MARK: - Intent
 
@@ -16,20 +17,33 @@ struct AnalyzeHealthIntent: AppIntent {
 
     func perform() async throws -> some ReturnsValue<String> & ProvidesDialog {
         let healthActor = HealthDataActor()
-        // Best-effort authorization; intent may run in background
         try? await healthActor.requestAuthorization()
 
         let snapshot = try await healthActor.fetchWeeklySnapshot()
 
         let userAge = UserDefaults.standard.integer(forKey: "user_age")
         let userSex = UserDefaults.standard.string(forKey: "user_sex") ?? "unknown"
+        let providerRaw = UserDefaults.standard.string(forKey: "preferred_provider") ?? LLMProviderType.anthropic.rawValue
+        let providerType = LLMProviderType(rawValue: providerRaw) ?? .anthropic
 
-        let service = AnthropicService()
+        let service = LLMServiceFactory.make(providerType: providerType)
         let insight = try await service.generateInsight(
             from: snapshot,
             userAge: userAge > 0 ? userAge : 30,
             biologicalSex: userSex
         )
+
+        let context = ModelContext(AppModelContainer.shared)
+        let weekStart = Calendar.current.date(byAdding: .day, value: -7, to: snapshot.date) ?? snapshot.date
+        let record = InsightRecord(
+            summary: insight.summary,
+            trend: insight.overallTrend.rawValue,
+            recommendations: insight.recommendations,
+            providerUsed: providerType.rawValue,
+            weekStartDate: weekStart
+        )
+        context.insert(record)
+        try? context.save()
 
         return .result(
             value: insight.summary,

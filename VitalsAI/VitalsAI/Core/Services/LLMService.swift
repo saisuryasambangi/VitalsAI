@@ -145,36 +145,34 @@ actor AnthropicService: LLMService {
         age: Int,
         sex: String
     ) -> String {
-        """
+        let ageGroup = BenchmarkService.ageGroup(for: age)
+        let service = BenchmarkService()
+        let hrv = service.lookup(metric: "hrv_sdnn", ageGroup: ageGroup, biologicalSex: sex)
+        let steps = service.lookup(metric: "steps_daily", ageGroup: ageGroup, biologicalSex: sex)
+        let sleep = service.lookup(metric: "sleep_hours", ageGroup: ageGroup, biologicalSex: sex)
+        let hrvStr   = hrv.map   { "\(Int($0.low))-\(Int($0.high))" } ?? "35-80"
+        let stepsStr = steps.map { "\(Int($0.low))-\(Int($0.high))" } ?? "7000-10000"
+        let sleepStr = sleep.map { "\(Int($0.low))-\(Int($0.high))" } ?? "7-9"
+
+        return """
         Analyze this 7-day health summary for a \(age)-year-old \(sex):
 
-        Steps (daily average): \(snapshot.steps)
+        Steps (daily average): \(snapshot.steps / 7)
         Resting Heart Rate: \(snapshot.restingHeartRate.map { String(format: "%.0f bpm", $0) } ?? "no data")
         HRV (SDNN): \(snapshot.hrvSDNN.map { String(format: "%.1f ms", $0) } ?? "no data")
-        Sleep (nightly average): \(String(format: "%.1f hours", snapshot.sleepHours))
-        Active Energy (daily average): \(String(format: "%.0f kcal", snapshot.activeEnergyKcal))
+        Sleep (nightly average): \(String(format: "%.1f hours", snapshot.sleepHours / 7.0))
+        Active Energy (daily average): \(String(format: "%.0f kcal", snapshot.activeEnergyKcal / 7.0))
         Date range ending: \(snapshot.date.formatted(.dateTime.month().day()))
 
         Reference benchmarks for this age/sex group (from published health guidelines):
         - Healthy resting HR: 60-80 bpm
-        - Healthy HRV SDNN (\(age)yo): \(hrvBenchmark(age: age)) ms
-        - Recommended daily steps: 7,000-10,000
-        - Recommended sleep: 7-9 hours
+        - Healthy HRV SDNN (\(age)yo): \(hrvStr) ms
+        - Recommended daily steps: \(stepsStr)
+        - Recommended sleep: \(sleepStr) hours
         - Active energy target: 400-600 kcal/day
 
         Generate a health insight JSON based on this data.
         """
-    }
-
-    private static func hrvBenchmark(age: Int) -> String {
-        switch age {
-        case ..<25:  return "55-105"
-        case 25..<35: return "45-95"
-        case 35..<45: return "35-80"
-        case 45..<55: return "28-65"
-        case 55..<65: return "22-55"
-        default:      return "18-45"
-        }
     }
 }
 

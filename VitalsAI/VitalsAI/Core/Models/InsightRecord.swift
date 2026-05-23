@@ -6,18 +6,18 @@ final class InsightRecord {
     var id: UUID = UUID()
     var createdAt: Date = Date()
     var summary: String = ""
-    var trend: String = TrendType.neutral.rawValue
+    var trend: String = HealthTrend.stable.rawValue
     var recommendations: [String] = [String]()
-    var providerUsed: String = "on-device"
+    var providerUsed: String = "anthropic"
     var weekStartDate: Date = Date()
 
     init(
         id: UUID = UUID(),
         createdAt: Date = Date(),
         summary: String = "",
-        trend: String = TrendType.neutral.rawValue,
+        trend: String = HealthTrend.stable.rawValue,
         recommendations: [String] = [],
-        providerUsed: String = "on-device",
+        providerUsed: String = "anthropic",
         weekStartDate: Date = Date()
     ) {
         self.id = id
@@ -28,11 +28,4 @@ final class InsightRecord {
         self.providerUsed = providerUsed
         self.weekStartDate = weekStartDate
     }
-}
-
-enum TrendType: String, Sendable, CaseIterable {
-    case improving
-    case declining
-    case neutral
-    case insufficient
 }

@@ -61,4 +61,25 @@ final class BenchmarkService: Sendable {
     func lookup(metric: String, ageGroup: String, biologicalSex: String) -> BenchmarkRange? {
         BenchmarkService.data[metric]?[ageGroup]
     }
+
+    func compare(metric: String, value: Double, age: Int, biologicalSex: String) -> TrendDirection {
+        let group = BenchmarkService.ageGroup(for: age)
+        guard let range = lookup(metric: metric, ageGroup: group, biologicalSex: biologicalSex) else {
+            return .neutral
+        }
+        if value < range.low { return .down }
+        if value > range.high { return .up }
+        return .neutral
+    }
+
+    static func ageGroup(for age: Int) -> String {
+        switch age {
+        case ..<25:   return "18-24"
+        case 25..<35: return "25-34"
+        case 35..<45: return "35-44"
+        case 45..<55: return "45-54"
+        case 55..<65: return "55-64"
+        default:      return "65+"
+        }
+    }
 }

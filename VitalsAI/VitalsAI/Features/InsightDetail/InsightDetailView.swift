@@ -88,14 +88,19 @@ struct InsightDetailView: View {
                 // Save button
                 Button {
                     viewModel.saveCurrentInsight()
-                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { dismiss() }
                 } label: {
-                    Text("Save to History")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                    Label(
+                        viewModel.isSaved ? "Saved!" : "Save to History",
+                        systemImage: viewModel.isSaved ? "checkmark" : "square.and.arrow.down"
+                    )
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isSaved)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.isSaved)
                 .padding(.top, 8)
             }
             .padding(20)
