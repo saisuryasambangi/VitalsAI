@@ -8,6 +8,13 @@ struct SettingsView: View {
     @AppStorage("user_sex") private var userSex: String = "unknown"
     @State private var permissionStatuses: [HealthPermission] = []
 
+    // Notification state
+    @State private var reminderEnabled = false
+    @State private var reminderWeekday: Int = 2   // Monday
+    @State private var reminderHour: Int = 9
+    @State private var nextFireDate: Date? = nil
+    @State private var notifAuthDenied = false
+
     var body: some View {
         Form {
             // MARK: Your Profile
@@ -64,6 +71,46 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: Notifications
+            Section {
+                Toggle("Weekly Reminder", isOn: $reminderEnabled)
+                    .onChange(of: reminderEnabled) { _, enabled in
+                        Task { await toggleReminder(enabled) }
+                    }
+
+                if reminderEnabled {
+                    Picker("Day", selection: $reminderWeekday) {
+                        ForEach(weekdayOptions, id: \.value) { opt in
+                            Text(opt.label).tag(opt.value)
+                        }
+                    }
+                    .onChange(of: reminderWeekday) { _, _ in reschedule() }
+
+                    Picker("Time", selection: $reminderHour) {
+                        ForEach([6, 7, 8, 9, 10, 12, 18, 20], id: \.self) { h in
+                            Text(hourLabel(h)).tag(h)
+                        }
+                    }
+                    .onChange(of: reminderHour) { _, _ in reschedule() }
+
+                    if let next = nextFireDate {
+                        LabeledContent("Next reminder", value: next.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if notifAuthDenied {
+                    Label("Notifications are disabled. Enable them in Settings.", systemImage: "bell.slash")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("A weekly nudge to run your health analysis.")
+            }
+
             // MARK: About
             Section("About") {
                 LabeledContent("Version", value: appVersion)
@@ -80,8 +127,53 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .task {
             loadPermissions()
+            await loadNotificationState()
         }
     }
+
+    // MARK: - Notification Helpers
+
+    private struct WeekdayOption { let label: String; let value: Int }
+    private var weekdayOptions: [WeekdayOption] {
+        [("Sunday",1),("Monday",2),("Tuesday",3),("Wednesday",4),
+         ("Thursday",5),("Friday",6),("Saturday",7)].map { WeekdayOption(label: $0.0, value: $0.1) }
+    }
+
+    private func hourLabel(_ h: Int) -> String {
+        let d = Calendar.current.date(bySettingHour: h, minute: 0, second: 0, of: Date()) ?? Date()
+        return d.formatted(.dateTime.hour().minute())
+    }
+
+    private func loadNotificationState() async {
+        let status = await NotificationService.shared.authorizationStatus()
+        notifAuthDenied = status == .denied
+        reminderEnabled = await NotificationService.shared.isReminderScheduled()
+        nextFireDate = await NotificationService.shared.nextFireDate()
+    }
+
+    private func toggleReminder(_ enabled: Bool) async {
+        if enabled {
+            let granted = await NotificationService.shared.requestPermission()
+            if granted {
+                NotificationService.shared.scheduleWeeklyReminder(weekday: reminderWeekday, hour: reminderHour)
+                nextFireDate = await NotificationService.shared.nextFireDate()
+                notifAuthDenied = false
+            } else {
+                reminderEnabled = false
+                notifAuthDenied = true
+            }
+        } else {
+            NotificationService.shared.cancelWeeklyReminder()
+            nextFireDate = nil
+        }
+    }
+
+    private func reschedule() {
+        NotificationService.shared.scheduleWeeklyReminder(weekday: reminderWeekday, hour: reminderHour)
+        Task { nextFireDate = await NotificationService.shared.nextFireDate() }
+    }
+
+    // MARK: - Version
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"

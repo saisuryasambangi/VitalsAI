@@ -13,6 +13,7 @@ final class InsightViewModel {
 
     private let llmService: any LLMService
     private let modelContext: ModelContext
+    private var currentSnapshot: HealthSnapshot?
 
     init(llmService: any LLMService, providerType: LLMProviderType, modelContext: ModelContext) {
         self.llmService = llmService
@@ -25,12 +26,12 @@ final class InsightViewModel {
         userAge: Int,
         biologicalSex: String
     ) async {
+        currentSnapshot = snapshot
         isGenerating = true
         error = nil
         currentInsight = nil
 
         do {
-            // Actor hop: call the actor-isolated service, await the result
             let insight = try await llmService.generateInsight(
                 from: snapshot,
                 userAge: userAge,
@@ -46,6 +47,7 @@ final class InsightViewModel {
 
     func saveCurrentInsight(weekStartDate: Date = Date()) {
         guard let insight = currentInsight, !isSaved else { return }
+        let snap = currentSnapshot
         let record = InsightRecord(
             id: UUID(),
             createdAt: Date(),
@@ -53,7 +55,12 @@ final class InsightViewModel {
             trend: insight.overallTrend.rawValue,
             recommendations: insight.recommendations,
             providerUsed: providerUsed.rawValue,
-            weekStartDate: weekStartDate
+            weekStartDate: weekStartDate,
+            snapshotDailySteps: snap.map { $0.steps / 7 } ?? 0,
+            snapshotRestingHR: snap?.restingHeartRate ?? 0,
+            snapshotHRVSDNN: snap?.hrvSDNN ?? 0,
+            snapshotNightlySleep: snap.map { $0.sleepHours / 7.0 } ?? 0,
+            snapshotDailyEnergy: snap.map { $0.activeEnergyKcal / 7.0 } ?? 0
         )
         modelContext.insert(record)
         try? modelContext.save()

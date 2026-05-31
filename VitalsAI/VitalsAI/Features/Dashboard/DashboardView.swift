@@ -174,6 +174,7 @@ struct DashboardView: View {
         let sex = viewModel.userSex
         let dailySteps = Double(snap.steps) / 7.0
         let nightlySleep = snap.sleepHours / 7.0
+        let prev = insights.first   // most recently saved record for week-over-week
 
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
             MetricCardView(
@@ -181,8 +182,13 @@ struct DashboardView: View {
                 value: (snap.steps / 7).formatted(),
                 unit: "avg/day",
                 iconName: "figure.walk",
-                trendDirection: benchmarks.compare(metric: "steps_daily", value: dailySteps, age: age, biologicalSex: sex)
+                trendDirection: weekOverWeek(
+                    current: dailySteps,
+                    previous: prev.map { Double($0.snapshotDailySteps) },
+                    fallback: benchmarks.compare(metric: "steps_daily", value: dailySteps, age: age, biologicalSex: sex)
+                )
             )
+            // Resting HR: higher isn't better, so always use benchmark comparison
             MetricCardView(
                 title: "Resting HR",
                 value: snap.restingHeartRate.map { String(format: "%.0f", $0) } ?? "–",
@@ -197,8 +203,12 @@ struct DashboardView: View {
                 value: snap.hrvSDNN.map { String(format: "%.1f", $0) } ?? "–",
                 unit: "ms",
                 iconName: "waveform.path.ecg",
-                trendDirection: snap.hrvSDNN.map {
-                    benchmarks.compare(metric: "hrv_sdnn", value: $0, age: age, biologicalSex: sex)
+                trendDirection: snap.hrvSDNN.map { hrv in
+                    weekOverWeek(
+                        current: hrv,
+                        previous: prev.map { $0.snapshotHRVSDNN },
+                        fallback: benchmarks.compare(metric: "hrv_sdnn", value: hrv, age: age, biologicalSex: sex)
+                    )
                 } ?? .neutral
             )
             MetricCardView(
@@ -206,9 +216,24 @@ struct DashboardView: View {
                 value: String(format: "%.1f", nightlySleep),
                 unit: "avg/night",
                 iconName: "moon.fill",
-                trendDirection: benchmarks.compare(metric: "sleep_hours", value: nightlySleep, age: age, biologicalSex: sex)
+                trendDirection: weekOverWeek(
+                    current: nightlySleep,
+                    previous: prev.map { $0.snapshotNightlySleep },
+                    fallback: benchmarks.compare(metric: "sleep_hours", value: nightlySleep, age: age, biologicalSex: sex)
+                )
             )
         }
+    }
+
+    /// Compares current value to previous week's value.
+    /// Returns `.up` / `.down` for >5 % change, `.neutral` within that band.
+    /// Falls back to benchmark comparison when no previous record exists.
+    private func weekOverWeek(current: Double, previous: Double?, fallback: TrendDirection) -> TrendDirection {
+        guard let prev = previous, prev > 0 else { return fallback }
+        let pct = (current - prev) / prev
+        if pct >  0.05 { return .up }
+        if pct < -0.05 { return .down }
+        return .neutral
     }
 
     private var analyzeButton: some View {
