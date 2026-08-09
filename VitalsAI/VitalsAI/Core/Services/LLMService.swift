@@ -48,7 +48,7 @@ actor AnthropicService: LLMService {
         request.setValue("text/event-stream", forHTTPHeaderField: "accept")
 
         let body: [String: Any] = [
-            "model": "claude-haiku-4-5-20251001",
+            "model": "claude-haiku-4-5",
             "max_tokens": 1024,
             "stream": true,
             "system": system,
